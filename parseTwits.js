@@ -42,10 +42,17 @@ const parsedTweets = new Tweets();
 async function scrollAndParse(page, lastTweetTime = null, scrolls = 1, scrollHeight = 0) {
   console.log(`Scroll number: ${scrolls}`);
   // await page.waitForNetworkIdle({idleTime: 1000, timeout: 60000});
-  await wait(1500);
+  await wait(500);
   
   console.log('Get tweets');
-  const tweets = await page.$x(`//article[@data-testid="tweet"]`);
+  let tweets;
+  try {
+    tweets = await page.$x(`//article[@data-testid="tweet"]`);
+  } catch (error) {
+    console.log("Error occured, dom was changed");
+    return scrollAndParse(page, lastTweetTime, scrolls, scrollHeight);
+  }
+  
   
   console.log(`Found ${tweets.length} tweets`);
   let timeStampElement  = await tweets[tweets.length - 1].$('xpath/' + `.//time`);  
@@ -53,12 +60,18 @@ async function scrollAndParse(page, lastTweetTime = null, scrolls = 1, scrollHei
   
   // console.log(`Current last tweet time is: ${currentLastTweetTime}`);   
 
-  for(let tweet of tweets) {
-    let timeStampElement  = await tweet.$('xpath/' + `.//time`);
-    let timeStamp = await page.evaluate(el => el.getAttribute('datetime'), timeStampElement);       
-    let tweetContent = await page.evaluate(el => el.outerHTML, tweet);
-    parsedTweets.addTweet(new Tweet(timeStamp, tweetContent));      
+  try {
+    for(let tweet of tweets) {
+      let timeStampElement  = await tweet.$('xpath/' + `.//time`);
+      let timeStamp = await page.evaluate(el => el.getAttribute('datetime'), timeStampElement);       
+      let tweetContent = await page.evaluate(el => el.outerHTML, tweet);
+      parsedTweets.addTweet(new Tweet(timeStamp, tweetContent));      
+    }
+  } catch (error) {
+    console.log("Error occured, dom was changed");
+    return scrollAndParse(page, lastTweetTime, scrolls, scrollHeight);
   }
+  
 
   console.log(`Parsed: ${parsedTweets.getTweetsAmount()} tweets`);  
 
@@ -70,7 +83,7 @@ async function scrollAndParse(page, lastTweetTime = null, scrolls = 1, scrollHei
     await page.evaluate(`window.scrollTo(0, ${scrollHeight})`);
     return scrollAndParse(page, lastTweetTime = currentLastTweetTime, scrolls + 1, scrollHeight + 1000);
   } else {
-    fs.writeFileSync('content.json', JSON.stringify(parsedTweets.getTweets()), );
+    fs.writeFileSync('content.json', JSON.stringify(parsedTweets.getTweets()));
     console.log("Parsing finished");
   }
 }
